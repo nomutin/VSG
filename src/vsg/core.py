@@ -2,7 +2,9 @@
 
 from typing import TypeAlias
 
-from distribution_extension import kl_divergence
+import torch
+from distribution_extension import BernoulliStraightThrough, kl_divergence
+from distribution_extension.utils import stack_distribution
 from lightning import LightningModule
 from torch import Tensor, nn
 
@@ -55,7 +57,9 @@ class VSG(LightningModule):
         decoder: nn.Module,
         init_proj: nn.Module,
         kl_coeff: float,
+        sparcity_coeff: float,
         use_kl_balancing: bool,
+        gate_prob: float,
     ) -> None:
         super().__init__()
         self.representation = representation
@@ -64,7 +68,9 @@ class VSG(LightningModule):
         self.decoder = decoder
         self.init_proj = init_proj
         self.kl_coeff = kl_coeff
+        self.sparcity_coeff = sparcity_coeff
         self.use_kl_balancing = use_kl_balancing
+        self.gate_prob = gate_prob
 
     def initial_state(self, observation: Tensor) -> State:
         """Generate initial state as zero matrix."""
@@ -79,7 +85,7 @@ class VSG(LightningModule):
         actions: Tensor,
         observations: Tensor,
         prev_state: State,
-    ) -> tuple[State, State]:
+    ) -> tuple[State, State, BernoulliStraightThrough]:
         """
         Rollout representation (posterior loop).
 
@@ -94,23 +100,28 @@ class VSG(LightningModule):
 
         Returns
         -------
-        tuple[State, State]
-            Posterior and prior states.
-            shape: [batch_size, seq_len, state_size].
+        State
+            Posterior states [batch_size, seq_len, state_size].
+        State
+            Prior states [batch_size, seq_len, state_size].
+        BernoulliStraightThrough
+            VSG's Update distribution [batch_size, seq_len, stochastic_size].
 
         """
         obs_embed = self.encoder.forward(observations)
-        priors, posteriors = [], []
+        priors, posteriors, updates = [], [], []
         for t in range(observations.shape[1]):
             prior = self.transition.forward(actions[:, t], prev_state)
             posterior = self.representation.forward(obs_embed[:, t], prior)
             priors.append(prior)
             posteriors.append(posterior)
+            updates.append(self.transition.rnn_cell.update.clone())
             prev_state = posterior
 
         prior = stack_states(priors, dim=1)
         posterior = stack_states(posteriors, dim=1)
-        return posterior, prior
+        update = stack_distribution(updates, dim=1)
+        return posterior, prior, update
 
     def rollout_transition(self, actions: Tensor, prev_state: State) -> State:
         """
@@ -151,7 +162,7 @@ class VSG(LightningModule):
     def shared_step(self, batch: DataGroup) -> LossDict:
         """Rollout common step for training and validation."""
         action_input, observation_input, _, observation_target = batch
-        posterior, prior = self.rollout_representation(
+        posterior, prior, update = self.rollout_representation(
             actions=action_input,
             observations=observation_input,
             prev_state=self.initial_state(observation_input[:, 0]),
@@ -167,8 +178,16 @@ class VSG(LightningModule):
             p=prior.distribution.independent(1),
             use_balancing=self.use_kl_balancing,
         ).mul(self.kl_coeff)
+        sparsity = kl_divergence(
+            q=update.independent(1),
+            p=BernoulliStraightThrough(
+                probs=torch.ones_like(update.probs) * self.gate_prob,
+            ).independent(1),
+            use_balancing=False,
+        ).mean().mul(self.sparcity_coeff)
         return {
-            "loss": recon_loss + kl_div,
+            "loss": recon_loss + kl_div + sparsity,
             "recon": recon_loss,
             "kl": kl_div,
+            "sparsity": sparsity,
         }

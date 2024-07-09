@@ -58,10 +58,6 @@ class VSGCell(nn.Module):
         candidate := Tanh(reset * f_c(inputs))
         output    := update * candidate + (1 - update) * h
 
-        Note
-        ----
-        * TODO: `torch.bernoulli` でいいの?
-
         Parameters
         ----------
         x : torch.Tensor
