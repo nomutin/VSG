@@ -21,8 +21,8 @@ attrs==23.2.0
 cloudpickle==3.0.0
     # via tensordict
     # via torchrl
-distribution-extension @ git+https://github.com/nomutin/distribution-extension.git@8fba25a911bd8fbc7d3edab06fa5fbfd4f48a3d7
-    # via rssm
+distribution-extension @ git+https://github.com/nomutin/distribution-extension.git@e3e63893b46d26fb1c0fceec47edb2a64dbbd55e
+    # via vsg
 einops==0.8.0
     # via distribution-extension
 filelock==3.14.0
@@ -40,7 +40,7 @@ idna==3.7
 jinja2==3.1.3
     # via torch
 lightning==2.2.3
-    # via rssm
+    # via vsg
 lightning-utilities==0.11.2
     # via lightning
     # via pytorch-lightning
@@ -115,7 +115,7 @@ torchmetrics==1.3.2
     # via lightning
     # via pytorch-lightning
 torchrl==0.4.0
-    # via rssm
+    # via vsg
 tqdm==4.66.2
     # via lightning
     # via pytorch-lightning

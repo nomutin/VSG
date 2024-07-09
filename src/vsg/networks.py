@@ -1,7 +1,11 @@
 """Networks for RSSM."""
 
 import torch
-from distribution_extension import MultiOneHotFactory, NormalFactory
+from distribution_extension import (
+    BernoulliStraightThrough,
+    MultiOneHotFactory,
+    NormalFactory,
+)
 from torch import Tensor, nn
 from torchrl.modules import MLP
 
@@ -14,7 +18,70 @@ __all__ = [
     "Transition",
     "TransitionV1",
     "TransitionV2",
+    "VSGCell",
 ]
+
+
+class VSGCell(nn.Module):
+    """
+    Variational Sparce Gating (VSG).
+
+    References
+    ----------
+    [1] https://arnavkj1995.github.io/pubs/Jain22.pdf
+    [2] https://github.com/arnavkj1995/VSG
+
+    Parameters
+    ----------
+    input_size : int
+        入力(x)の次元数.
+    hidden_size : int
+        隠れ状態(h)の次元数.
+    """
+
+    def __init__(self, input_size: int, hidden_size: int) -> None:
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.update_bias = -1
+        self.layer = nn.Linear(input_size + hidden_size, 3 * hidden_size)
+
+    def forward(self, x: Tensor, hx: Tensor) -> Tensor:
+        """
+        順伝播.
+
+        Architecture
+        ------------
+        inputs    := concat(x, h)
+        update    := Bernoulli(Sigmoid(f_u(inputs)))
+        reset     := Sigmoid(f_r(inputs))
+        candidate := Tanh(reset * f_c(inputs))
+        output    := update * candidate + (1 - update) * h
+
+        Note
+        ----
+        * TODO: `torch.bernoulli` でいいの?
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            入力. shape: [Batch, InputSize]
+        h : torch.Tensor
+            隠れ状態. shape: [Batch, HiddenSize]
+
+        Returns
+        -------
+        torch.Tensor
+            出力. shape: [Batch, HiddenSize]
+        """
+        parts = self.layer(torch.cat([x, hx], dim=-1))
+        reset, candidate, update = torch.chunk(parts, 3, dim=-1)
+        update_p = torch.sigmoid(update + self.update_bias)
+        self.update = BernoulliStraightThrough(probs=update_p)
+        update = self.update.rsample()
+        reset = torch.sigmoid(reset)
+        candidate = torch.tanh(reset * candidate)
+        return update * candidate + (1 - update) * hx
 
 
 class RepresentationV1(nn.Module):
@@ -91,7 +158,7 @@ class TransitionV1(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.rnn_cell = nn.GRUCell(
+        self.rnn_cell = VSGCell(
             input_size=hidden_size,
             hidden_size=deterministic_size,
         )
@@ -219,7 +286,7 @@ class TransitionV2(nn.Module):
         """Set components."""
         super().__init__()
 
-        self.rnn_cell = nn.GRUCell(
+        self.rnn_cell = VSGCell(
             input_size=hidden_size,
             hidden_size=deterministic_size,
         )

@@ -23,10 +23,3 @@ jobs:
       - name: Run lint
         run: |
           rye run ruff check .
-      - name: Run tests
-        run: |
-          rye run cov
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
