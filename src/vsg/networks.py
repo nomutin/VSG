@@ -58,6 +58,10 @@ class VSGCell(nn.Module):
         candidate := Tanh(reset * f_c(inputs))
         output    := update * candidate + (1 - update) * h
 
+        Note
+        ----
+        * sparsity loss の計算のために `update` はアクセス可能にする必要がある
+
         Parameters
         ----------
         x : torch.Tensor
@@ -74,7 +78,7 @@ class VSGCell(nn.Module):
         reset, candidate, update = torch.chunk(parts, 3, dim=-1)
         update_p = torch.sigmoid(update + self.update_bias)
         self.update = BernoulliStraightThrough(probs=update_p)
-        update = self.update.rsample()
+        update = self.update.independent(1).rsample()
         reset = torch.sigmoid(reset)
         candidate = torch.tanh(reset * candidate)
         return update * candidate + (1 - update) * hx

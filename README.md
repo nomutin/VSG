@@ -3,7 +3,7 @@
 ![python](https://img.shields.io/badge/python-3.10-blue)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-[VSG](https://arxiv.org/abs/2210.11698) for imitation learning.
+Lightning implementation of [VSG](https://arxiv.org/abs/2210.11698).
 
 ## API
 
