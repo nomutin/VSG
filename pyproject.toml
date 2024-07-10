@@ -1,6 +1,6 @@
 [project]
 name = "vsg"
-version = "0.1.0"
+version = "0.1.1"
 description = "Variational Sparse Gating"
 dependencies = [
     "lightning>=2.2.1",
