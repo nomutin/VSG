@@ -2,14 +2,13 @@
 
 from typing import TypeAlias
 
-import torch
 from distribution_extension import BernoulliStraightThrough, kl_divergence
 from distribution_extension.utils import stack_distribution
 from lightning import LightningModule
 from torch import Tensor, nn
 
 from vsg.networks import Representation, Transition
-from vsg.objective import likelihood
+from vsg.objective import likelihood, sparsity
 from vsg.state import State, stack_states
 
 DataGroup: TypeAlias = tuple[Tensor, Tensor, Tensor, Tensor]
@@ -22,9 +21,8 @@ class VSG(LightningModule):
 
     References
     ----------
-    * https://arxiv.org/abs/1912.01603 [Hafner+ 2019]
     * https://arxiv.org/abs/2010.02193 [Hafner+ 2021]
-    * https://github.com/juliusfrost/dreamer-pytorch
+    * https://arxiv.org/abs/2210.11698 [Jain+ 2022]
 
     Parameters
     ----------
@@ -43,8 +41,12 @@ class VSG(LightningModule):
         I/O: [*B, obs_embed_size] -> [*B, deterministic_size].
     kl_coeff : float
         KL Divergence coefficient.
+    sparsity_coeff : float
+        Sparsity loss coefficient.
     use_kl_balancing : bool
         Whether to use KL balancing.
+    gate_prob : float
+        Sparsity probability.
 
     """
 
@@ -57,7 +59,7 @@ class VSG(LightningModule):
         decoder: nn.Module,
         init_proj: nn.Module,
         kl_coeff: float,
-        sparcity_coeff: float,
+        sparsity_coeff: float,
         use_kl_balancing: bool,
         gate_prob: float,
     ) -> None:
@@ -68,7 +70,7 @@ class VSG(LightningModule):
         self.decoder = decoder
         self.init_proj = init_proj
         self.kl_coeff = kl_coeff
-        self.sparcity_coeff = sparcity_coeff
+        self.sparsity_coeff = sparsity_coeff
         self.use_kl_balancing = use_kl_balancing
         self.gate_prob = gate_prob
 
@@ -178,16 +180,13 @@ class VSG(LightningModule):
             p=prior.distribution.independent(1),
             use_balancing=self.use_kl_balancing,
         ).mul(self.kl_coeff)
-        sparsity = kl_divergence(
-            q=update.independent(1),
-            p=BernoulliStraightThrough(
-                probs=torch.ones_like(update.probs) * self.gate_prob,
-            ).independent(1),
-            use_balancing=False,
-        ).mean().mul(self.sparcity_coeff)
+        sparsity_loss = sparsity(
+            update=update,
+            gate_prob=self.gate_prob,
+        ).mul(self.sparsity_coeff)
         return {
-            "loss": recon_loss + kl_div + sparsity,
+            "loss": recon_loss + kl_div + sparsity_loss,
             "recon": recon_loss,
             "kl": kl_div,
-            "sparsity": sparsity,
+            "sparsity": sparsity_loss,
         }

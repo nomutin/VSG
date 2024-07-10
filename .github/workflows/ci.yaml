@@ -23,3 +23,6 @@ jobs:
       - name: Run lint
         run: |
           rye run ruff check .
+      - name: Run tests
+        run: |
+          rye run cov

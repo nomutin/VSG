@@ -1,18 +1,19 @@
 """source files."""
 
-from rssm.core import RSSM
-from rssm.networks import (
+from vsg.core import VSG
+from vsg.networks import (
     Representation,
     RepresentationV1,
     RepresentationV2,
     Transition,
     TransitionV1,
     TransitionV2,
+    VSGCell,
 )
-from rssm.state import State, cat_states, stack_states
+from vsg.state import State, cat_states, stack_states
 
 __all__ = [
-    "RSSM",
+    "VSG",
     "Representation",
     "RepresentationV1",
     "RepresentationV2",
@@ -20,6 +21,7 @@ __all__ = [
     "Transition",
     "TransitionV1",
     "TransitionV2",
+    "VSGCell",
     "cat_states",
     "stack_states",
 ]

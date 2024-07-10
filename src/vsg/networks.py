@@ -1,4 +1,4 @@
-"""Networks for RSSM."""
+"""Networks for VSG."""
 
 import torch
 from distribution_extension import (
